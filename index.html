@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+
+<meta charset="UTF-8">
+<title>IA Captação de Imóveis</title>
+
+<style>
+
+body{
+background:#0f172a;
+font-family:Arial;
+color:white;
+margin:0;
+padding:0;
+}
+
+header{
+background:#020617;
+padding:15px;
+font-size:22px;
+font-weight:bold;
+}
+
+.container{
+padding:20px;
+}
+
+button{
+padding:10px 15px;
+border:none;
+border-radius:6px;
+cursor:pointer;
+margin-right:10px;
+}
+
+.buscar{
+background:#22c55e;
+color:white;
+}
+
+.blacklist{
+background:#ef4444;
+color:white;
+}
+
+.result{
+background:#1e293b;
+padding:15px;
+border-radius:8px;
+margin-bottom:15px;
+}
+
+a{
+color:#38bdf8;
+}
+
+.telefone{
+color:#22c55e;
+font-weight:bold;
+}
+
+.floatingIA{
+position:fixed;
+bottom:20px;
+right:20px;
+width:320px;
+height:260px;
+background:#020617;
+border:1px solid #334155;
+border-radius:10px;
+overflow:auto;
+padding:10px;
+font-size:13px;
+}
+
+.contador{
+margin-top:10px;
+color:#22c55e;
+}
+
+</style>
+</head>
+
+<body>
+
+<header>
+🧠 IA Captação de Proprietários
+</header>
+
+<div class="container">
+
+<button class="buscar" onclick="buscar()">Buscar Proprietários</button>
+<button class="blacklist" onclick="toggleBlacklist()">Ativar/Desativar Blacklist</button>
+
+<div class="contador">
+Imóveis encontrados: <span id="count">0</span>
+</div>
+
+<div id="resultados"></div>
+
+</div>
+
+<div class="floatingIA" id="logIA">
+IA iniciada...
+</div>
+
+<script>
+
+let blacklistAtiva = true
+let blacklist = JSON.parse(localStorage.getItem("blacklist") || "[]")
+
+function log(msg){
+document.getElementById("logIA").innerHTML += "<br>"+msg
+}
+
+function toggleBlacklist(){
+
+blacklistAtiva = !blacklistAtiva
+
+log("Blacklist: "+blacklistAtiva)
+
+}
+
+function detectarCorretor(texto){
+
+let palavras = [
+"imobiliaria",
+"corretor",
+"creci",
+"imoveis",
+"realty",
+"imob"
+]
+
+for(let p of palavras){
+
+if(texto.toLowerCase().includes(p)){
+return true
+}
+
+}
+
+return false
+
+}
+
+function detectarProprietario(texto){
+
+let palavras = [
+"direto com proprietário",
+"trato direto",
+"particular vende",
+"falar com dono",
+"direto com dono"
+]
+
+for(let p of palavras){
+
+if(texto.toLowerCase().includes(p)){
+return true
+}
+
+}
+
+return false
+
+}
+
+function extrairTelefone(texto){
+
+let regex = /(\(?\d{2}\)?\s?\d{4,5}\-?\d{4})/g
+
+let tel = texto.match(regex)
+
+if(tel) return tel[0]
+
+return ""
+
+}
+
+async function buscar(){
+
+log("🔎 IA pesquisando...")
+
+let sites = [
+
+"https://www.olx.com.br/imoveis",
+"https://www.vivareal.com.br",
+"https://www.zapimoveis.com.br"
+
+]
+
+for(let site of sites){
+
+try{
+
+let r = await fetch("/scrape?url="+site)
+
+let html = await r.text()
+
+processar(html,site)
+
+}catch(e){
+
+log("Erro "+site)
+
+}
+
+}
+
+}
+
+function processar(html,site){
+
+let parser = new DOMParser()
+
+let doc = parser.parseFromString(html,"text/html")
+
+let links = doc.querySelectorAll("a")
+
+links.forEach(a=>{
+
+let texto = a.innerText
+
+if(texto.length<20) return
+
+if(blacklistAtiva && detectarCorretor(texto)){
+
+blacklist.push(texto)
+
+localStorage.setItem("blacklist",JSON.stringify(blacklist))
+
+log("🚫 Corretor detectado")
+
+return
+
+}
+
+let tel = extrairTelefone(texto)
+
+if(detectarProprietario(texto) || tel){
+
+mostrarResultado(texto,a.href,tel)
+
+}
+
+})
+
+}
+
+function mostrarResultado(nome,link,telefone){
+
+let div = document.createElement("div")
+
+div.className="result"
+
+div.innerHTML=`
+
+<b>${nome}</b><br>
+
+<a href="${link}" target="_blank">${link}</a><br>
+
+<span class="telefone">${telefone}</span>
+
+`
+
+document.getElementById("resultados").appendChild(div)
+
+let count = document.getElementById("count")
+
+count.innerText = parseInt(count.innerText)+1
+
+}
+
+</script>
+
+</body>
+</html>
